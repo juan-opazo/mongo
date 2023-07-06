@@ -1,0 +1,63 @@
+version: '3'
+
+services:
+  db:
+    image: postgres:13-alpine
+    volumes:
+      - dev-db-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=devdb
+      - POSTGRES_USER=devuser
+      - POSTGRES_PASSWORD=thisisnotthepassword
+  backend:
+    container_name: mongo-app
+    build: 
+      context: ./server
+      args:
+       - DEV=true
+    volumes:
+      - ./server/app:/app
+    expose:
+      - 5005
+    ports:
+      - "5005:5005"
+    user: root:root
+    command: >
+      sh -c "python manage.py wait_for_db &&
+             python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:5005"
+    environment:
+      - DB_HOST=db
+      - DB_NAME=devdb
+      - DB_USER=devuser
+      - DB_PASS=thisisnotthepassword
+    depends_on:
+      - db
+  frontend:
+    container_name: frontend-app
+    build: ./client
+    volumes:
+      - ./client/:/usr/src/app-nextjs/
+    expose:
+      - 3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      - backend
+  nginx:
+    build: .
+    expose:
+      - 80
+    ports:
+      - '80:80'
+    depends_on:
+      - frontend
+      - backend
+    links:
+      - frontend
+      - backend
+
+volumes:
+  dev-db-data:
+  dev-static-data:
